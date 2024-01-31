@@ -1,0 +1,7 @@
+_target_: src.data.datamodule.DataModule
+train_val_split:
+- 5666
+- 1000
+batch_size: 1
+num_workers: 2
+pin_memory: false
