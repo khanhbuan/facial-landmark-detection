@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 <div align="center">
 
 # Lightning-Hydra-Template
@@ -1296,6 +1295,3 @@ You can override any parameter from command line like this
 ```bash
 python src/train.py trainer.max_epochs=20 data.batch_size=64
 ```
-=======
-# facial-landmark-detection
->>>>>>> 71813f8ce8f04e531a61651b6acd86b7341d1cb3
