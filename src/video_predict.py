@@ -1,9 +1,7 @@
-import math
 import os
 import albumentations as A
 from albumentations import Compose
 from albumentations.pytorch.transforms import ToTensorV2
-import time
 import torch
 from yolo5face.get_model import get_model
 from PIL import Image
@@ -187,11 +185,10 @@ face_detector = get_model("yolov5n", device='cuda', min_face=10)
 
 cap = cv2.VideoCapture(0)
 
+result = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), cap.get(cv2.CAP_PROP_FPS), (600, 700)) 
+
 iter_filter_keys = iter(filters_config.keys())
 filters, multi_filter_runtime = load_filter(next(iter_filter_keys))
-
-isFirstFrame = True
-sigma = 50
 
 while True:
     ret, frame = cap.read()
@@ -286,6 +283,7 @@ while True:
         cv2.imshow("landmarks", frame)
     
     cv2.imshow('frame', frame)
+    result.write(frame)
 
     keypressed = cv2.waitKey(1) & 0xFF
     if keypressed == 27:

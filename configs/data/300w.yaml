@@ -1,4 +1,10 @@
 _target_: src.data.datamodule.DataModule
+
+defaults:
+  - _self_
+  - train_transform: train_transform.yaml
+  - val_test_transform: val_test_transform.yaml
+
 train_val_split: [5666, 1000]
 batch_size: 16
 num_workers: 2

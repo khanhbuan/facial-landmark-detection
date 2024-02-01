@@ -2,15 +2,13 @@ import torch
 from torch.utils.data import Dataset
 from lightning import LightningDataModule
 import albumentations as A
-from albumentations import Compose
-from albumentations.pytorch.transforms import ToTensorV2
 from typing import Any, Dict, Optional, Tuple
 from torch.utils.data import DataLoader, Dataset, random_split
 import hydra
 import rootutils
 from omegaconf import DictConfig
-from components.customed_dataset import Customed_Dataset
-from components.transformed_dataset import Transformed_Dataset
+from src.data.components.customed_dataset import Customed_Dataset
+from src.data.components.transformed_dataset import Transformed_Dataset
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
@@ -20,29 +18,17 @@ class DataModule(LightningDataModule):
         train_val_split: Tuple[int, int] = (5666, 1000),
         batch_size: int = 64,
         num_workers: int = 3,
+        train_transform: Optional[A.Compose] = None,
+        val_test_transform: Optional[A.Compose] = None,
         pin_memory: bool = False,
     ) -> None:
         super().__init__()
 
         self.save_hyperparameters(logger=False)
+        
+        self.train_transform = train_transform
 
-        self.train_transform = Compose([
-            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=0.05, p=0.5),
-            A.Resize(256, 256),
-            A.RandomCrop(224, 224),
-            A.RGBShift(r_shift_limit=15, g_shift_limit=15, b_shift_limit=15, p=0.5),
-            A.RandomBrightnessContrast(p=0.5),
-            A.Cutout(num_holes=8, max_h_size=18, max_w_size=18),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2(),
-        ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
-
-        self.val_test_transform = Compose([
-            A.Resize(256, 256),
-            A.CenterCrop(224, 224),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2(),
-        ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
+        self.val_test_transform = val_test_transform
 
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
@@ -68,9 +54,9 @@ class DataModule(LightningDataModule):
             self.batch_size_per_device = self.hparams.batch_size // self.trainer.world_size
 
         if not self.data_train and not self.data_val and not self.data_test:
-            self.data_test = Transformed_Dataset(test_dataset, transform=self.val_test_transform)
             self.data_train = Transformed_Dataset(train_dataset, transform=self.train_transform)
             self.data_val = Transformed_Dataset(val_dataset, transform=self.val_test_transform)
+            self.data_test = Transformed_Dataset(test_dataset, transform=self.val_test_transform)
     
     def train_dataloader(self) -> DataLoader[Any]:
         return DataLoader(
@@ -113,6 +99,12 @@ class DataModule(LightningDataModule):
 def main(cfg: DictConfig) -> Optional[float]:
     datamodule: LightningDataModule = hydra.utils.instantiate(config=cfg)
     datamodule.setup
+    print(datamodule.train_transform)
+    """
+    for batch in datamodule.train_dataloader():
+        images, labels = batch
+        print(labels)
+    """
 
 if __name__ == "__main__":
     main()

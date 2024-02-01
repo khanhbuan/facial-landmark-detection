@@ -1,7 +1,0 @@
-_target_: src.data.datamodule.DataModule
-val_test_split:
-- 0.5
-- 0.5
-batch_size: 1
-num_workers: 1
-pin_memory: false
