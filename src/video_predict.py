@@ -1,3 +1,4 @@
+import math
 import os
 import albumentations as A
 from albumentations import Compose
@@ -83,12 +84,13 @@ def get_keypoints(model, face_detector, image):
         detransform = Compose([
             A.Resize(width, height),
         ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
-
-        transformed = transform(image=cropped_image)
-
-        cropped_image = transformed["image"]
         
-        input = cropped_image[None].to("cuda")
+        input = []
+        transformed = transform(image=cropped_image)
+        transformed_image = transformed["image"]
+        input.append(transformed_image)
+
+        input = torch.from_numpy(np.array(input)).to("cuda")
 
         output = model(input)
         points = torch.Tensor(output.cpu().reshape((68, 2))).to(torch.float32).detach().numpy()
@@ -190,10 +192,13 @@ result = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), cap.get(
 iter_filter_keys = iter(filters_config.keys())
 filters, multi_filter_runtime = load_filter(next(iter_filter_keys))
 
+isFirstFrame = True
+sigma = 50
+
 while True:
     ret, frame = cap.read()
     if ret == False:
-        continue
+        break
 
     points_list = get_keypoints(detector, face_detector, frame)
 
@@ -201,7 +206,38 @@ while True:
     temp2 = frame
 
     for face_id in range(len(points_list)):
+        
         keypoints = points_list[face_id]
+
+        if len(points_list) == 1:
+            ################ Optical Flow and Stabilization Code #####################
+            img2Gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            if isFirstFrame:
+                points2Prev = np.array(keypoints, np.float32)
+                img2GrayPrev = np.copy(img2Gray)
+                isFirstFrame = False
+
+            lk_params = dict(winSize=(101, 101), maxLevel=15,
+                                criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 20, 0.001))
+            points2Next, st, err = cv2.calcOpticalFlowPyrLK(img2GrayPrev, img2Gray, points2Prev,
+                                                                np.array(keypoints, np.float32),
+                                                                **lk_params)
+
+            # Final landmark points are a weighted average of detected landmarks and tracked landmarks
+
+            for k in range(0, len(keypoints)):
+                d = cv2.norm(np.array(keypoints[k]) - points2Next[k])
+                alpha = math.exp(-d * d / sigma)
+                keypoints[k] = (1 - alpha) * np.array(keypoints[k]) + alpha * points2Next[k]
+                keypoints[k] = fbc.constrainPoint(keypoints[k], frame.shape[1], frame.shape[0])
+                keypoints[k] = (int(keypoints[k][0]), int(keypoints[k][1]))
+
+            # Update variables for next pass
+            points2Prev = np.array(keypoints, np.float32)
+            img2GrayPrev = img2Gray
+            ################ End of Optical Flow and Stabilization Code ###############
+
         if VISUALIZE_FACE_POINTS:
             for (x, y) in keypoints:
                 cv2.circle(frame, (int(x), int(y)), 2, (255, 0, 0), -1)
